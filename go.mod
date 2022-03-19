@@ -1,4 +1,4 @@
-module example.com/framebot
+module github.com/chris-maclean/framebot
 
 go 1.17
 

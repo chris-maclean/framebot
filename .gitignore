@@ -1,3 +1,4 @@
 *-keys.*
-out_img.jpg
-out-base64.txt
+*/.env
+dev/
+*.exe

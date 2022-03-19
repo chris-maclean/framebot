@@ -1,8 +1,8 @@
 package twitter
 
 import (
+	b64 "encoding/base64"
 	"encoding/json"
-	"fmt"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -53,72 +53,95 @@ func Get(id int64) *twitter.Tweet {
 
 }
 
-func Post(text string, imagePaths []string) *twitter.Tweet {
+/**
+Upload a file to Twitter using the "POST media/upload" endpoint. The response includes a Media ID
+that will be used later to associate the uploaded file to a new tweet. The Media ID is communicated
+back to the caller using a channel
 
+https://developer.twitter.com/en/docs/twitter-api/v1/media/upload-media/api-reference/post-media-upload
+*/
+func uploadMedia(imagePath string, client http.Client, c chan int64) int64 {
+	log.Println(`Uploading image ` + imagePath)
+
+	// Read the image file and convert it to base 64
+	imgBuffer, imageReadErr := ioutil.ReadFile(imagePath)
+	if imageReadErr != nil {
+		log.Fatal(imageReadErr)
+	}
+
+	imageAsBase64 := b64.StdEncoding.EncodeToString(imgBuffer)
+
+	// Create an HTTP form and set the media_data property
+	form := url.Values{}
+	form.Add("media_data", string(imageAsBase64))
+	form.Add("media_category", "tweet_image")
+
+	// Create a POST request that will upload the the accompanying image to the upload media endpoint
+	req, createReqErr := http.NewRequest("POST", "https://upload.twitter.com/1.1/media/upload.json", strings.NewReader(form.Encode()))
+	if createReqErr != nil {
+		log.Fatal(createReqErr)
+	}
+
+	// Create a Query object that will set the media_category option. It's possible that
+
+	// q := req.URL.Query()
+	// q.Add("media_category", "tweet_image")
+	// req.URL.RawQuery = q.Encode()
+
+	// Add the Content-Type header to the request
+	req.Header.Add("Content-Type", "application/x-www-form-urlencoded")
+
+	// Submit the POST request
+	res, err := client.Do(req)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	// Read the response from the upload request
+	var mur MediaUploadResponse
+	body, uploadResponseReadError := ioutil.ReadAll(res.Body)
+	if uploadResponseReadError != nil {
+		log.Fatal(uploadResponseReadError)
+	}
+
+	// Unmarshal the JSON body of the response into a MediaUploadResponse struct
+	json.Unmarshal(body, &mur)
+
+	// Send the MediaId over the channel. The listener will be able to use this
+	// id to create a tweet with the image attached
+	c <- mur.Media_Id
+
+	// Return the MediaId as well, just in case something needs it
+	return mur.Media_Id
+}
+
+func Post(text string, imagePaths []string) *twitter.Tweet {
 	if len(imagePaths) > 4 {
 		log.Fatal("Too many images specified. Only 4 images may be attached to a Tweet")
 	}
 
-	// _, httpClient := getClient()
+	// Build a Twitter and a plain HTTP client configured with OAuth
 	client, httpClient := getClient()
+	mediaIdChannel := make(chan int64, len(imagePaths))
 
-	// Try to POST to upload/media
-	base64, _ := ioutil.ReadFile("out-base64.txt")
-
-	form := url.Values{}
-	form.Add("media_data", string(base64))
-
-	req, _ := http.NewRequest("POST", "https://upload.twitter.com/1.1/media/upload.json", strings.NewReader(form.Encode()))
-	q := req.URL.Query()
-	q.Add("media_category", "tweet_image")
-	req.URL.RawQuery = q.Encode()
-
-	req.Header.Add("Content-Type", "application/x-www-form-urlencoded")
-
-	res, err := httpClient.Do(req)
-	if err != nil {
-		log.Fatal(err)
+	// Upload all the media for this tweet
+	for _, path := range imagePaths {
+		go uploadMedia(path, httpClient, mediaIdChannel)
 	}
-	var mur MediaUploadResponse
-	body, _ := ioutil.ReadAll(res.Body)
-	json.Unmarshal(body, &mur)
 
-	fmt.Println(mur.Media_Id_String)
+	// Wait for the media IDs to come over the channel
+	mediaIds := []int64{}
+	for i := 0; i < len(imagePaths); i++ {
+		mediaIds = append(mediaIds, <-mediaIdChannel)
+	}
 
-	tweet, resp, err := client.Statuses.Update(text, &twitter.StatusUpdateParams{
-		MediaIds: []int64{mur.Media_Id},
+	// Post a tweet and attach all the uploaded media
+	tweet, _, err := client.Statuses.Update(text, &twitter.StatusUpdateParams{
+		MediaIds: mediaIds,
 	})
-	log.Println(err)
-	if resp != nil {
-		log.Fatal(resp)
-	}
-
 	if err != nil {
 		log.Fatal(err)
 	}
-
-	fmt.Println(tweet)
 
 	return tweet
 }
-
-// func uploadMedia(path string) {
-// 	imageReader, imageReadErr := os.Open(path)
-// 	if imageReadErr != nil {
-// 		log.Fatal(imageReadErr)
-// 	}
-
-// 	client := http.Client{}
-// 	req, err := http.NewRequest("POST", "https://upload.twitter.com/1.1/media/upload.json", nil)
-// 	if err != nil {
-// 		log.Fatal(err)
-// 	}
-
-// 	req.Header.Add("Content-Type", "application/x-www-form-urlencoded")
-// 	// req.Form.Add("media_category", "tweet_image")
-
-// 	res, err := client.Do(req)
-// 	if err != nil {
-// 		log.Fatal(err)
-// 	}
-// }
