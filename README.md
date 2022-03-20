@@ -28,7 +28,7 @@ export TWITTER_ACCESS_TOKEN=...
 export TWITTER_ACCESS_SECRET=...
 
 Run the following command:
-```
+```bash
 $ framebot --stateFile /path/to/state/file.json
 ```
 
@@ -91,7 +91,7 @@ We highly recommend running the Framebot image in a Docker container. The image 
 
 The user will need to specify some options when starting the container image:
 * `-v /path/to/initialStateFile.json:/opt/framebot/framebot-state.json`
-    * Mount an initial state file to the location `/opt/framebot/framebot-state.json`. This location on the container filesystem is required because `framebot` will be invoked without any runtime options
+    * Mount an initial state file to the location `/opt/framebot/framebot-state.json`. This location on the container filesystem is required because `framebot` will be invoked without any runtime options. Ensure that the `file` property of the state file represents the filepath _on the container filesystem!_
 * `-v /path/to/moviefile:/opt/framebot/movie`
     * Mount the video file from which frames will be extracted. The container file location must match the value specified in the state file, or be the default `/opt/framebot/movie` if the state file does not specify a filepath
 * `--env-file /path/to/envfile`
