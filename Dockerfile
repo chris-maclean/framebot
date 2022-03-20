@@ -16,6 +16,3 @@ RUN go build -v -o /usr/local/bin/ ./...
 RUN echo "*/5 * * * * /usr/local/bin/framebot" >> /etc/crontabs/root
 
 CMD ["crond", "-f"]
-
-# Start docker container:
-# docker run -v d:/git/framebot/dev/start-job.json:/opt/framebot/framebot-state.json -v d:/git/framebot/framebot.cron:/etc/cron.d/framebot -ti -v e:/My\ Videos/Movies/2001\ A\ Space\ Odyssey.mkv:/opt/framebot/movie --env-file ./dev/.env --rm cmaclean/framebot
